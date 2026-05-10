@@ -2,22 +2,33 @@ package main
 
 import (
 	"fmt"
+	"sync"
+	"time"
 )
 
-func fibonacci(n int, c chan int) {
-	x, y := 0, 1
-	for i := 0; i < n; i++ {
-		c <- x
-		x, y = y, x+y
-	}
+type SafeCounter struct {
+	mu sync.Mutex
+	v  map[string]int
+}
 
-	close(c)
+func (c *SafeCounter) Inc(key string) {
+	c.mu.Lock()
+	c.v[key]++
+	c.mu.Unlock()
+}
+
+func (c *SafeCounter) Value(key string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.v[key]
 }
 
 func main() {
-	c := make(chan int, 10)
-	go fibonacci(cap(c), c)
-	for i := range c {
-		fmt.Println(i)
+	c := SafeCounter{v: make(map[string]int)}
+	for range 1000 {
+		go c.Inc("somekey")
 	}
+
+	time.Sleep(time.Second)
+	fmt.Println(c.Value("somekey"))
 }
